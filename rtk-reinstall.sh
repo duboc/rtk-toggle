@@ -327,11 +327,65 @@ reinstall_antigravity() {
   local dir="$1"
   ensure_rtk_installed "$CLAUDE_DIR"
 
-  echo "Running: rtk init --agent antigravity (in $dir)"
+  local rules_dir="$dir/.agents/rules"
+  local rules_file="$rules_dir/antigravity-rtk-rules.md"
+
+  # We write our own rules file instead of delegating to
+  # `rtk init --agent antigravity` because rtk's generated file has no
+  # frontmatter. Per Antigravity's own bundled docs
+  # (agy-customizations SKILL.md): "Rules with trigger: model_decision
+  # [are loaded only when the model decides to]. Only always_on rules
+  # are loaded unconditionally." Without a trigger field, compliance is
+  # model-dependent (see README's compliance table) — trigger: always_on
+  # forces it into context on every turn regardless of model.
+  echo "Writing $rules_file"
   if $DRY_RUN; then
-    echo "[dry-run] would run: (cd $dir && rtk init --agent antigravity)"
+    echo "[dry-run] would write $rules_file (with trigger: always_on frontmatter)"
   else
-    (cd "$dir" && rtk init --agent antigravity)
+    mkdir -p "$rules_dir"
+    cat > "$rules_file" <<'EOF'
+---
+trigger: always_on
+description: Use rtk for token-optimized shell commands
+---
+# RTK - Rust Token Killer (Google Antigravity)
+
+**Usage**: Token-optimized CLI proxy for shell commands.
+
+## Rule
+
+Always prefix shell commands with `rtk` to minimize token consumption.
+
+Examples:
+
+```bash
+rtk git status
+rtk cargo test
+rtk ls src/
+rtk grep "pattern" src/
+rtk find "*.rs" .
+rtk docker ps
+rtk gh pr list
+```
+
+## Meta Commands
+
+```bash
+rtk gain              # Show token savings
+rtk gain --history    # Command history with savings
+rtk discover          # Find missed RTK opportunities
+rtk proxy <cmd>       # Run raw (no filtering, for debugging)
+```
+
+## Why
+
+RTK filters and compresses command output before it reaches the LLM context, saving 60-90% tokens on common operations. Always use `rtk <cmd>` instead of raw commands.
+EOF
+    echo
+    echo "RTK configured for Google Antigravity."
+    echo "  Rules: $rules_file (installed, trigger: always_on)"
+    echo "  Antigravity will now use rtk commands for token savings."
+    echo "  Test with: git status"
   fi
 }
 

@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Empirically measures how often agy (Google Antigravity CLI) actually
 # follows the .agents/rules/antigravity-rtk-rules.md file that
-# `rtk init --agent antigravity` installs, broken down by model. This is
-# the exact methodology behind the compliance numbers documented in
-# README.md.
+# rtk-reinstall.sh --agent antigravity installs (trigger: always_on
+# frontmatter — see README's "How reliable is the Antigravity
+# integration?" section for why that matters), broken down by model.
+# This is the exact methodology behind the compliance numbers documented
+# in README.md.
 #
 #   INPUT       A fixed, disposable git repo (just an initial commit of
 #               README.md) plus a fixed prompt asking the model to run
@@ -84,6 +86,13 @@ for dep in rtk agy; do
   fi
 done
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RTK_REINSTALL="$SCRIPT_DIR/rtk-reinstall.sh"
+if [[ ! -x "$RTK_REINSTALL" ]]; then
+  echo "Expected to find rtk-reinstall.sh next to this script at $RTK_REINSTALL, but it's missing or not executable." >&2
+  exit 1
+fi
+
 STAMP=$(date +%Y%m%d-%H%M%S)
 OUT="${OUT:-./agy-compliance-results/$STAMP}"
 WORKROOT="$HOME/.agy-compliance-work-$STAMP"
@@ -132,15 +141,18 @@ for model in "${MODEL_ARR[@]}"; do
     prompt=$(printf "$PROMPT_TEMPLATE" "$workdir")
     echo "$prompt" > "$trial_out/prompt.txt"
 
-    # --- Setup: a disposable git repo with rtk's antigravity rules installed ---
+    # --- Setup: a disposable git repo with OUR rtk-reinstall.sh antigravity
+    #     rules file installed (trigger: always_on frontmatter) — not raw
+    #     `rtk init --agent antigravity` — so this test always measures
+    #     exactly what rtk-toggle actually ships, not upstream rtk's file. ---
     {
       echo "+ git init"
       git -C "$workdir" init -q
       echo "+ echo hello > README.md && git add README.md"
       echo hello > "$workdir/README.md"
       git -C "$workdir" add README.md
-      echo "+ rtk init --agent antigravity"
-      (cd "$workdir" && rtk init --agent antigravity)
+      echo "+ $RTK_REINSTALL --agent antigravity --dir $workdir"
+      "$RTK_REINSTALL" --agent antigravity --dir "$workdir"
     } > "$trial_out/setup.txt" 2>&1
 
     # --- The actual agy invocation, verbatim, saved for transparency ---

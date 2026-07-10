@@ -100,7 +100,8 @@ that can drift out of date.
 Unlike Claude Code's hook (which programmatically rewrites every command),
 Antigravity's `.agents/rules/` file is advisory — the model has to choose
 to follow it. We measured how often it actually does, across 10 trials
-per model, using `test-antigravity-compliance.sh` (below):
+per model, using `test-antigravity-compliance.sh` (below), against the
+plain file `rtk init --agent antigravity` generates (no frontmatter):
 
 | Model | Compliant |
 |---|---|
@@ -111,21 +112,44 @@ per model, using `test-antigravity-compliance.sh` (below):
 | Gemini 3.1 Pro (High) | 9/10 |
 | Gemini 3.1 Pro (Low) | 10/10 |
 
-The split is by model family, not effort tier — all three Gemini 3.5
-Flash variants cluster around 20-30% regardless of Low/Medium/High, while
-Gemini 3.1 Pro is consistently 90-100% at either effort level. If your
-Antigravity default is a Flash variant, expect the rules file to be
-followed well under half the time; Gemini 3.1 Pro is the one that
-reliably delivers the advertised savings.
+The split was by model family, not effort tier — all three Gemini 3.5
+Flash variants clustered around 20-30% regardless of Low/Medium/High.
+
+**Root cause**: Antigravity's own bundled docs (the `agy-customizations`
+skill, `~/.gemini/antigravity-cli/builtin/skills/agy-customizations/`)
+state that rules support a `trigger` frontmatter field, and *"Rules with
+`trigger: model_decision` [are loaded only when the model decides to].
+Only `always_on` rules are loaded unconditionally."* rtk's generated file
+has no frontmatter at all — so it wasn't force-loaded, and compliance
+came down to whether each model happened to decide to consult it.
+
+**Fix**: `rtk-install.sh`/`rtk-reinstall.sh --agent antigravity` now write
+their own rules file with `trigger: always_on` + `description`
+frontmatter (same rtk-usage instructions as rtk's own file, just properly
+tagged) instead of delegating to `rtk init --agent antigravity`. Re-running
+the full test suite against this file:
+
+| Model | Compliant |
+|---|---|
+| Gemini 3.5 Flash (Low) | 10/10 |
+| Gemini 3.5 Flash (Medium) | 10/10 |
+| Gemini 3.5 Flash (High) | 10/10 |
+| Gemini 3 Flash | 10/10 |
+| Gemini 3.1 Pro (High) | 10/10 |
+| Gemini 3.1 Pro (Low) | 10/10 |
+
+60/60 across every model tested — the frontmatter, not model capability,
+was the actual bottleneck.
 
 ### `test-antigravity-compliance.sh [options]`
 
-Reproduces the table above (or tests your own prompt/models). For each
-(model, trial) pair it:
+Reproduces the tables above (or tests your own prompt/models/rules file).
+For each (model, trial) pair it:
 
 1. Creates a fresh, uniquely-named disposable git repo under `$HOME` (a
-   trusted Antigravity workspace) and runs `rtk init --agent antigravity`
-   in it.
+   trusted Antigravity workspace) and installs the rules file via
+   `rtk-reinstall.sh --agent antigravity` — i.e. whatever rtk-toggle
+   actually ships, not necessarily upstream rtk's own generator.
 2. Sends a fixed prompt asking the model to run `git status` via
    `agy --add-dir <repo> --model <model> --print "<prompt>"`, saving the
    exact command and agy's raw output verbatim.
