@@ -1,9 +1,9 @@
 # rtk-toggle
 
-Two small, dependency-light scripts to cleanly enable or disable the
-[rtk](https://github.com/rtk-ai/rtk) (Rust Token Killer) integration for
-your coding agent — without hand-editing config files, and without
-touching anything else in your setup.
+Three small, dependency-light scripts to cleanly install, remove, or
+restore the [rtk](https://github.com/rtk-ai/rtk) (Rust Token Killer)
+integration for your coding agent — without hand-editing config files,
+and without touching anything else in your setup.
 
 rtk wires itself into agents in two different ways:
 
@@ -26,20 +26,38 @@ what these scripts fill.
 ## Usage
 
 ```bash
-# Claude Code (default agent, global) — preview, then apply
+# Never used rtk before? Start here — checks prerequisites, installs the
+# rtk binary, and sets up the chosen agent(s) from a clean machine.
+./rtk-install.sh --agent claude
+./rtk-install.sh --agent antigravity --dir /path/to/project
+
+# Already set up, but it's getting in the way — preview, then remove
 ./rtk-uninstall.sh --dry-run
 ./rtk-uninstall.sh
-./rtk-reinstall.sh
-
-# Google Antigravity — scoped to a project directory (default: cwd)
-./rtk-uninstall.sh --agent antigravity --dir /path/to/project --dry-run
 ./rtk-uninstall.sh --agent antigravity --dir /path/to/project
+
+# Changed your mind — put it back
+./rtk-reinstall.sh
 ./rtk-reinstall.sh --agent antigravity --dir /path/to/project
 
-# Both at once
+# Any script, either agent, at once
+./rtk-install.sh --agent all --dir /path/to/project
 ./rtk-uninstall.sh --agent all --dir /path/to/project
 ./rtk-reinstall.sh --agent all --dir /path/to/project
 ```
+
+All three scripts are idempotent — safe to run more than once — and
+accept `--agent claude|antigravity|all`, `--dir PATH` (for antigravity),
+and `--dry-run`.
+
+### `rtk-install.sh [--agent claude|antigravity|all] [--dir PATH] [--dry-run]`
+
+A friendly entry point for a machine that has no `rtk` binary and no
+existing config. Checks for `jq`/`cargo` up front and prints an install
+hint (with the right package-manager command, where detectable) if
+either is missing, instead of a bare error. It's a thin wrapper — the
+actual setup work is identical to `rtk-reinstall.sh` (see below) run
+with `--latest`, since a clean machine has no prior version to restore.
 
 ### `rtk-uninstall.sh [--agent claude|antigravity|all] [--dir PATH] [--dry-run]`
 
