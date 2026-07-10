@@ -95,6 +95,57 @@ release otherwise. Pass `--latest` to always grab the newest version.
 content generation to rtk itself rather than hand-copying a template
 that can drift out of date.
 
+## How reliable is the Antigravity integration?
+
+Unlike Claude Code's hook (which programmatically rewrites every command),
+Antigravity's `.agents/rules/` file is advisory — the model has to choose
+to follow it. We measured how often it actually does, across 10 trials
+per model, using `test-antigravity-compliance.sh` (below):
+
+| Model | Compliant |
+|---|---|
+| Gemini 3.5 Flash (Low) | 3/10 |
+| Gemini 3.5 Flash (Medium) | 2/10 |
+| Gemini 3.5 Flash (High) | 3/10 |
+| Gemini 3 Flash | 6/10 |
+| Gemini 3.1 Pro (High) | 9/10 |
+| Gemini 3.1 Pro (Low) | 10/10 |
+
+The split is by model family, not effort tier — all three Gemini 3.5
+Flash variants cluster around 20-30% regardless of Low/Medium/High, while
+Gemini 3.1 Pro is consistently 90-100% at either effort level. If your
+Antigravity default is a Flash variant, expect the rules file to be
+followed well under half the time; Gemini 3.1 Pro is the one that
+reliably delivers the advertised savings.
+
+### `test-antigravity-compliance.sh [options]`
+
+Reproduces the table above (or tests your own prompt/models). For each
+(model, trial) pair it:
+
+1. Creates a fresh, uniquely-named disposable git repo under `$HOME` (a
+   trusted Antigravity workspace) and runs `rtk init --agent antigravity`
+   in it.
+2. Sends a fixed prompt asking the model to run `git status` via
+   `agy --add-dir <repo> --model <model> --print "<prompt>"`, saving the
+   exact command and agy's raw output verbatim.
+3. **Validates independently of what the model claims**: queries rtk's
+   own project-scoped usage log (`rtk gain --project --history`) in that
+   repo afterward. rtk only logs commands actually run through it, so a
+   model that ran raw `git status` leaves zero trace there — there's no
+   way for narrated-but-not-executed compliance to pass.
+4. Deletes the disposable repo (unless `--keep-dirs`) but keeps every
+   artifact — prompt, exact command, raw agy output, raw validation
+   output, and verdict — under `--out` for inspection.
+
+```bash
+./test-antigravity-compliance.sh                              # all agy models, 10 trials each
+./test-antigravity-compliance.sh --models "Gemini 3.1 Pro (High)" --trials 20
+./test-antigravity-compliance.sh --trials 3 --out /tmp/quick-check
+```
+
+Requires `rtk` and `agy` (the Antigravity CLI) in `PATH`.
+
 ## Requirements
 
 - `bash`, `jq`
